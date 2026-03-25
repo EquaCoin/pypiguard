@@ -1,0 +1,66 @@
+name: 'PyPIGuard'
+description: 'Detects malicious PyPI packages — especially .pth files that steal SSH keys, cloud credentials, and API tokens (LiteLLM-style supply-chain attacks)'
+author: 'EquaCoin + Grok'
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  requirements-file:
+    description: 'Path to requirements.txt (or any requirements file)'
+    required: false
+    default: 'requirements.txt'
+  extra-packages:
+    description: 'Space-separated list of additional packages to scan (e.g. "litellm openai")'
+    required: false
+    default: ''
+  fail-on-suspicious:
+    description: 'Fail the workflow if suspicious .pth or malicious indicators are found'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install GuardDog
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install guarddog
+
+    - name: Install PyPIGuard scanner
+      shell: bash
+      run: |
+        cp $GITHUB_ACTION_PATH/pyguard.py /tmp/pyguard.py
+        chmod +x /tmp/pyguard.py
+
+    - name: Run GuardDog static analysis
+      shell: bash
+      run: |
+        if [ -f "${{ inputs.requirements-file }}" ]; then
+          echo "🚀 Running GuardDog on ${{ inputs.requirements-file }}"
+          guarddog pypi scan -r "${{ inputs.requirements-file }}" --fail-on-malicious || { echo "❌ GuardDog detected malicious indicators!"; exit 1; }
+        fi
+
+    - name: Run PyPIGuard (.pth + credential exfil detector)
+      shell: bash
+      run: |
+        echo "🔬 Running PyPIGuard custom scanner..."
+        /tmp/pyguard.py \
+          --requirements "${{ inputs.requirements-file }}" \
+          ${{ inputs.extra-packages }} || { echo "❌ PyPIGuard blocked suspicious package(s)!"; exit 1; }
+      env:
+        FAIL_ON_SUSPICIOUS: ${{ inputs.fail-on-suspicious }}
+
+    - name: Scan summary
+      if: always()
+      shell: bash
+      run: |
+        echo "🎯 PyPIGuard Security Scan complete!"
+        echo "→ Rotate keys if you ever installed litellm==1.82.7 or 1.82.8"
+        echo "→ Pin versions in requirements.txt"
