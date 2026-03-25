@@ -1,5 +1,5 @@
 name: 'PyPIGuard'
-description: 'Detects malicious PyPI packages — especially .pth files that steal SSH keys, cloud credentials, and API tokens (LiteLLM-style supply-chain attacks)'
+description: 'PyPI supply-chain scanner: detects .pth auto-exec & credential theft (LiteLLM-style attacks)'
 author: 'EquaCoin + Grok'
 branding:
   icon: 'shield'
